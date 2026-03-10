@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2FA Generator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #09090b;
+    --surface:   #111113;
+    --surface2:  #18181c;
+    --border:    #222228;
+    --border2:   #2e2e38;
+    --text:      #ededf5;
+    --muted:     #4e4e64;
+    --muted2:    #35353f;
+    --accent:    #8b7ff8;
+    --accent-lo: rgba(139,127,248,0.10);
+    --green:     #4ade9a;
+    --green-lo:  rgba(74,222,154,0.08);
+    --yellow:    #fbbf24;
+    --red:       #f87171;
+    --mono:      'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px 64px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 55% 35% at 50% 45%,
+      rgba(139,127,248,0.055) 0%, transparent 70%);
+  }
+
+  /* ── Card ── */
+  .spotlight {
+    width: 100%;
+    max-width: 500px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.02),
+      0 24px 48px rgba(0,0,0,0.55),
+      0 8px 16px rgba(0,0,0,0.3);
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+  }
+
+  /* ── Search row ── */
+  .search-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 17px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-icon { color: var(--muted); flex-shrink: 0; }
+  .secret-input {
+    flex: 1;
+    background: none;
+    border: none;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    outline: none;
+    caret-color: var(--accent);
+  }
+  .secret-input::placeholder { color: var(--muted2); }
+  .paste-hint {
+    font-size: 10px;
+    color: var(--muted2);
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    padding: 3px 7px;
+    font-family: var(--mono);
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    padding: 52px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 30px; opacity: 0.1; margin-bottom: 2px; }
+  .empty-text { font-size: 13px; color: var(--muted); line-height: 1.65; }
+
+  /* ── Code area ── */
+  .code-area {
+    padding: 32px 28px 26px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .code-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    user-select: none;
+  }
+
+  /* clickable digits */
+  .code-click {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    border-radius: 12px;
+    padding: 12px 20px 10px;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    margin-bottom: 20px;
+  }
+  .code-click:hover { background: rgba(255,255,255,0.03); }
+  .code-click:active { background: rgba(255,255,255,0.05); }
+
+  .giant-code {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+  }
+  .g-group { display: flex; gap: 3px; }
+  .g-digit {
+    font-family: var(--mono);
+    font-size: 62px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    transition: color 0.2s;
+  }
+  .g-sep {
+    display: flex; flex-direction: column;
+    justify-content: center; gap: 7px;
+    padding-bottom: 4px;
+  }
+  .g-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted2); }
+
+  .code-click.flash .g-digit { color: var(--green); }
+
+  .click-hint {
+    font-size: 10.5px;
+    color: var(--muted2);
+    letter-spacing: 0.03em;
+    user-select: none;
+    transition: opacity 0.2s;
+  }
+  .code-click.flash .click-hint { color: var(--green); opacity: 0.8; }
+
+  /* progress bar */
+  .progress-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+  .progress-track {
+    flex: 1;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: width 1s linear, background 0.4s;
+  }
+  .progress-time {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    flex-shrink: 0;
+    width: 26px;
+    text-align: right;
+    user-select: none;
+  }
+
+  /* ── Footer row ── */
+  .footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .history-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 4px 8px;
+    transition: color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .history-toggle:hover { color: var(--text); background: var(--surface2); }
+  .toggle-chevron { transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); }
+  .history-toggle.open .toggle-chevron { transform: rotate(180deg); }
+  .toggle-count {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 99px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    padding: 1px 7px;
+  }
+  .clear-all {
+    background: none;
+    border: none;
+    font-size: 11px;
+    color: var(--muted2);
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 4px 8px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .clear-all:hover { color: var(--red); background: rgba(248,113,113,0.08); }
+
+  /* ── History drawer ── */
+  .drawer {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1);
+    border-top: 0px solid var(--border);
+  }
+  .drawer.open {
+    max-height: 300px;
+    border-top-width: 1px;
+  }
+  .drawer-inner {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+    max-height: 298px;
+  }
+
+  .h-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .h-item:hover { background: var(--surface2); border-color: var(--border); }
+  .h-item.current { background: var(--surface2); border-color: rgba(139,127,248,0.2); }
+
+  .h-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted2); flex-shrink: 0;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .h-dot.live {
+    background: var(--green);
+    box-shadow: 0 0 7px rgba(74,222,154,0.45);
+  }
+  .h-secret {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.03em;
+  }
+  .h-code {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+    transition: color 0.3s;
+  }
+  .h-code.live { color: var(--green); }
+  .h-s {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted2);
+    flex-shrink: 0;
+    width: 24px;
+    text-align: right;
+  }
+  .h-del {
+    background: none; border: none;
+    color: var(--muted2);
+    cursor: pointer; font-size: 12px;
+    border-radius: 4px; padding: 2px 5px;
+    transition: color 0.12s, background 0.12s;
+    line-height: 1; flex-shrink: 0;
+  }
+  .h-del:hover { color: var(--red); background: rgba(248,113,113,0.08); }
+
+  .history-empty {
+    padding: 20px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted2);
+  }
+
+  /* ── Page footer ── */
+  .page-footer {
+    margin-top: 22px;
+    font-size: 11.5px;
+    color: var(--muted2);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    user-select: none;
+    z-index: 10;
+    position: relative;
+  }
+  .page-footer .heart {
+    color: #e879a0;
+    font-size: 12px;
+    opacity: 0.85;
+  }
+  .page-footer .brand {
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+</style>
+</head>
+<body>
+
+<div class="spotlight" id="spotlight">
+
+  <!-- Search row -->
+  <div class="search-row">
+    <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="11" cy="11" r="7"/>
+      <line x1="16.5" y1="16.5" x2="22" y2="22"/>
+    </svg>
+    <input class="secret-input" id="secret-input"
+      placeholder="Paste secret key…"
+      autocomplete="off" autocorrect="off" spellcheck="false">
+    <span class="paste-hint">⌘V</span>
+  </div>
+
+  <!-- Content -->
+  <div id="content">
+    <div class="empty-state">
+      <div class="empty-icon">⬡</div>
+      <div class="empty-text">Paste your secret key above<br>to generate a 2FA code</div>
+    </div>
+  </div>
+
+  <!-- Footer row (hidden until code active) -->
+  <div class="footer-row" id="footer-row" style="display:none">
+    <button class="history-toggle" id="hist-toggle">
+      <svg class="toggle-chevron" width="13" height="13" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+      Recent
+      <span class="toggle-count" id="toggle-count">0</span>
+    </button>
+    <button class="clear-all" id="clear-all-btn">Clear all</button>
+  </div>
+
+  <!-- History drawer -->
+  <div class="drawer" id="drawer">
+    <div class="drawer-inner" id="history-list"></div>
+  </div>
+
+</div>
+
+<!-- Page footer -->
+<div class="page-footer">
+  Made by <span class="brand">jution</span> with <span class="heart">♥</span>
+</div>
+
+<script>
+// ─── TOTP ───────────────────────────────────────────────────────────────────
+
+function base32Decode(input) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  input = input.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  let bits = 0, value = 0, index = 0;
+  const output = new Uint8Array(Math.floor(input.length * 5 / 8));
+  for (let i = 0; i < input.length; i++) {
+    const idx = alphabet.indexOf(input[i]);
+    if (idx < 0) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      output[index++] = (value >>> (bits - 8)) & 0xff;
+      bits -= 8;
+    }
+  }
+  return output;
+}
+
+async function generateTOTP(secret) {
+  const key = base32Decode(secret);
+  if (!key.length) return null;
+
+  const epoch = Math.floor(Date.now() / 1000 / 30);
+  const timeBuf = new ArrayBuffer(8);
+  new DataView(timeBuf).setUint32(4, epoch, false);
+
+  try {
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw', key, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+    );
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, timeBuf));
+    const offset = sig[19] & 0xf;
+    const code = (
+      ((sig[offset]     & 0x7f) << 24) |
+      ((sig[offset + 1] & 0xff) << 16) |
+      ((sig[offset + 2] & 0xff) <<  8) |
+       (sig[offset + 3] & 0xff)
+    ) % 1_000_000;
+    return code.toString().padStart(6, '0');
+  } catch {
+    return null;
+  }
+}
+
+function stripSecret(raw) {
+  return raw.toUpperCase().replace(/[^A-Z2-7]/g, '');
+}
+
+function secondsLeft() { return 30 - (Math.floor(Date.now() / 1000) % 30); }
+function timeWindow()   { return Math.floor(Date.now() / 1000 / 30); }
+
+// ─── State ──────────────────────────────────────────────────────────────────
+
+const MAX_HISTORY = 5;
+let history = JSON.parse(localStorage.getItem('2fa_history') || '[]');
+let currentSecret = '';
+let currentCode   = '';
+let lastWindow    = -1;
+let drawerOpen    = false;
+
+// ─── Render ─────────────────────────────────────────────────────────────────
+
+function renderCodeArea(code) {
+  const d = code.split('');
+  document.getElementById('content').innerHTML = `
+    <div class="code-area">
+      <div class="code-label">One-time password</div>
+      <div class="code-click" id="code-click">
+        <div class="giant-code">
+          <div class="g-group">
+            <span class="g-digit">${d[0]}</span>
+            <span class="g-digit">${d[1]}</span>
+            <span class="g-digit">${d[2]}</span>
+          </div>
+          <div class="g-sep"><div class="g-dot"></div><div class="g-dot"></div></div>
+          <div class="g-group">
+            <span class="g-digit">${d[3]}</span>
+            <span class="g-digit">${d[4]}</span>
+            <span class="g-digit">${d[5]}</span>
+          </div>
+        </div>
+        <span class="click-hint" id="click-hint">click to copy</span>
+      </div>
+      <div class="progress-row">
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <span class="progress-time" id="progress-time"></span>
+      </div>
+    </div>`;
+
+  document.getElementById('code-click').addEventListener('click', copyCode);
+  updateProgress();
+}
+
+function renderEmpty() {
+  document.getElementById('content').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">⬡</div>
+      <div class="empty-text">Paste your secret key above<br>to generate a 2FA code</div>
+    </div>`;
+}
+
+function updateProgress() {
+  const fill = document.getElementById('progress-fill');
+  const time = document.getElementById('progress-time');
+  if (!fill) return;
+  const s = secondsLeft();
+  const pct = (s / 30) * 100;
+  fill.style.width = pct + '%';
+  fill.style.background =
+    s <= 7  ? 'var(--red)'    :
+    s <= 13 ? 'var(--yellow)' : 'var(--accent)';
+  if (time) time.textContent = s + 's';
+}
+
+function renderHistory() {
+  const list  = document.getElementById('history-list');
+  const count = document.getElementById('toggle-count');
+  if (count) count.textContent = history.length;
+
+  if (!history.length) {
+    list.innerHTML = '<div class="history-empty">No recent keys</div>';
+    return;
+  }
+
+  list.innerHTML = history.map((h, i) => `
+    <div class="h-item ${i === 0 ? 'current' : ''}" data-idx="${i}">
+      <div class="h-dot ${i === 0 ? 'live' : ''}" id="hdot-${i}"></div>
+      <span class="h-secret">${h.secret}</span>
+      <span class="h-code ${i === 0 ? 'live' : ''}" id="hcode-${i}">
+        ${(h.code || '------').slice(0,3)} ${(h.code || '------').slice(3)}
+      </span>
+      <span class="h-s" id="hs-${i}"></span>
+      <button class="h-del" data-idx="${i}">✕</button>
+    </div>`).join('');
+
+  updateHistoryCountdowns();
+
+  list.querySelectorAll('.h-del').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx);
+      history.splice(idx, 1);
+      saveHistory();
+      renderHistory();
+    });
+  });
+
+  list.querySelectorAll('.h-item').forEach(item => {
+    item.addEventListener('click', e => {
+      if (e.target.classList.contains('h-del')) return;
+      const h = history[parseInt(item.dataset.idx)];
+      if (h) loadSecret(h.secret);
+    });
+  });
+}
+
+function updateHistoryCountdowns() {
+  history.forEach((_, i) => {
+    const el = document.getElementById(`hs-${i}`);
+    if (el) el.textContent = secondsLeft() + 's';
+  });
+}
+
+// ─── Copy ───────────────────────────────────────────────────────────────────
+
+async function copyCode() {
+  if (!currentCode) return;
+  try {
+    await navigator.clipboard.writeText(currentCode);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = currentCode;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  const el = document.getElementById('code-click');
+  const hint = document.getElementById('click-hint');
+  if (!el) return;
+  if (hint) hint.textContent = 'copied!';
+  el.classList.add('flash');
+  setTimeout(() => {
+    el.classList.remove('flash');
+    if (hint) hint.textContent = 'click to copy';
+  }, 1200);
+}
+
+// ─── History ────────────────────────────────────────────────────────────────
+
+function saveHistory() {
+  localStorage.setItem('2fa_history', JSON.stringify(history));
+}
+
+function pushHistory(secret, code) {
+  history = history.filter(h => h.secret !== secret);
+  history.unshift({ secret, code });
+  if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+  saveHistory();
+}
+
+// ─── Load secret ────────────────────────────────────────────────────────────
+
+async function loadSecret(raw) {
+  const clean = stripSecret(raw);
+  document.getElementById('secret-input').value = clean;
+  currentSecret = clean;
+
+  if (!clean) {
+    currentCode = '';
+    renderEmpty();
+    document.getElementById('footer-row').style.display = 'none';
+    return;
+  }
+
+  const code = await generateTOTP(clean);
+  if (!code) {
+    currentCode = '';
+    renderEmpty();
+    document.getElementById('footer-row').style.display = 'none';
+    return;
+  }
+
+  currentCode = code;
+  lastWindow  = timeWindow();
+  renderCodeArea(code);
+  document.getElementById('footer-row').style.display = 'flex';
+  pushHistory(clean, code);
+  renderHistory();
+}
+
+// ─── Input ──────────────────────────────────────────────────────────────────
+
+const secretInput = document.getElementById('secret-input');
+
+secretInput.addEventListener('input', () => {
+  const val = stripSecret(secretInput.value);
+  secretInput.value = val;
+  if (val.length >= 8) loadSecret(val);
+  else if (!val) { currentSecret = ''; currentCode = ''; renderEmpty(); document.getElementById('footer-row').style.display = 'none'; }
+});
+
+secretInput.addEventListener('paste', e => {
+  e.preventDefault();
+  const pasted = (e.clipboardData || window.clipboardData).getData('text');
+  const clean  = stripSecret(pasted);
+  secretInput.value = clean;
+  if (clean.length >= 8) loadSecret(clean);
+});
+
+// ─── Tick ───────────────────────────────────────────────────────────────────
+
+async function tick() {
+  updateProgress();
+  updateHistoryCountdowns();
+
+  if (currentSecret && timeWindow() !== lastWindow) {
+    lastWindow = timeWindow();
+    const code = await generateTOTP(currentSecret);
+    if (code) {
+      currentCode = code;
+      renderCodeArea(code);
+      // update history codes
+      history = await Promise.all(history.map(async h => ({
+        ...h,
+        code: await generateTOTP(h.secret) || h.code
+      })));
+      saveHistory();
+      renderHistory();
+    }
+  }
+}
+
+setInterval(tick, 1000);
+
+// ─── Drawer toggle ──────────────────────────────────────────────────────────
+
+document.getElementById('hist-toggle').addEventListener('click', () => {
+  drawerOpen = !drawerOpen;
+  document.getElementById('drawer').classList.toggle('open', drawerOpen);
+  document.getElementById('hist-toggle').classList.toggle('open', drawerOpen);
+  if (drawerOpen) renderHistory();
+});
+
+document.getElementById('clear-all-btn').addEventListener('click', () => {
+  history = [];
+  saveHistory();
+  renderHistory();
+  drawerOpen = false;
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('hist-toggle').classList.remove('open');
+  document.getElementById('toggle-count').textContent = '0';
+});
+
+// ─── Init ───────────────────────────────────────────────────────────────────
+
+// restore latest secret from history on load
+if (history.length) {
+  loadSecret(history[0].secret);
+}
+</script>
+</body>
+</html>
