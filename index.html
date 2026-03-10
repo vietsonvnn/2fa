@@ -64,8 +64,8 @@
   .search-row {
     display: flex;
     align-items: center;
-    gap: 11px;
-    padding: 17px 20px;
+    gap: 13px;
+    padding: 22px 24px;
     border-bottom: 1px solid var(--border);
   }
   .search-icon { color: var(--muted); flex-shrink: 0; }
@@ -74,20 +74,20 @@
     background: none;
     border: none;
     font-family: var(--mono);
-    font-size: 13.5px;
+    font-size: 15px;
     color: var(--text);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     outline: none;
     caret-color: var(--accent);
   }
   .secret-input::placeholder { color: var(--muted2); }
   .paste-hint {
-    font-size: 10px;
+    font-size: 10.5px;
     color: var(--muted2);
     background: var(--surface2);
     border: 1px solid var(--border2);
     border-radius: 5px;
-    padding: 3px 7px;
+    padding: 4px 9px;
     font-family: var(--mono);
     flex-shrink: 0;
     user-select: none;
@@ -337,11 +337,84 @@
     color: var(--muted2);
   }
 
+  /* ── Multi-key mode ── */
+  .multi-area {
+    padding: 22px 20px 20px;
+    display: flex;
+    flex-direction: column;
+  }
+  .multi-label {
+    font-size: 10px; font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 14px;
+    padding: 0 4px;
+    user-select: none;
+  }
+  .multi-list {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: 20px;
+  }
+  .multi-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.12s, border-color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .multi-item:hover { background: rgba(255,255,255,0.03); border-color: var(--border); }
+  .multi-item:active { background: rgba(255,255,255,0.05); }
+  .multi-item.flash {
+    background: var(--green-lo);
+    border-color: rgba(74,222,154,0.2);
+  }
+  .multi-item.flash .multi-code { color: var(--green); }
+  .multi-item.flash .multi-hint { color: var(--green); opacity: 0.8; }
+  .multi-secret {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    letter-spacing: 0.03em;
+  }
+  .multi-code {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    color: var(--text); letter-spacing: 0.1em;
+    flex-shrink: 0; transition: color 0.2s;
+    user-select: none;
+  }
+  .multi-hint {
+    font-size: 10px; color: var(--muted2);
+    flex-shrink: 0; text-align: right;
+    transition: color 0.2s;
+    user-select: none;
+  }
+  /* badge in search row for multi-mode */
+  .multi-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 3px 8px 3px 10px;
+    font-size: 11.5px; color: var(--muted);
+    flex-shrink: 0; user-select: none;
+  }
+  .multi-badge strong { color: var(--accent); font-weight: 600; }
+  .badge-clear {
+    background: none; border: none;
+    color: var(--muted2); cursor: pointer;
+    font-size: 12px; line-height: 1;
+    border-radius: 3px; padding: 1px 3px;
+    transition: color 0.12s;
+  }
+  .badge-clear:hover { color: var(--red); }
+
   /* ── Page footer ── */
   .page-footer {
     margin-top: 22px;
-    font-size: 11.5px;
-    color: var(--muted2);
+    font-size: 12px;
+    color: #5a5a72;
     display: flex;
     align-items: center;
     gap: 5px;
@@ -351,12 +424,11 @@
   }
   .page-footer .heart {
     color: #e879a0;
-    font-size: 12px;
-    opacity: 0.85;
+    font-size: 13px;
   }
   .page-footer .brand {
-    color: var(--muted);
-    font-weight: 500;
+    color: #9d94f5;
+    font-weight: 600;
     letter-spacing: 0.01em;
   }
 </style>
@@ -375,7 +447,8 @@
     <input class="secret-input" id="secret-input"
       placeholder="Paste secret key…"
       autocomplete="off" autocorrect="off" spellcheck="false">
-    <span class="paste-hint">⌘V</span>
+    <div id="multi-badge-wrap" style="display:none"></div>
+    <span class="paste-hint" id="paste-hint">⌘V</span>
   </div>
 
   <!-- Content -->
@@ -435,11 +508,9 @@ function base32Decode(input) {
 async function generateTOTP(secret) {
   const key = base32Decode(secret);
   if (!key.length) return null;
-
   const epoch = Math.floor(Date.now() / 1000 / 30);
   const timeBuf = new ArrayBuffer(8);
   new DataView(timeBuf).setUint32(4, epoch, false);
-
   try {
     const cryptoKey = await crypto.subtle.importKey(
       'raw', key, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
@@ -453,13 +524,17 @@ async function generateTOTP(secret) {
        (sig[offset + 3] & 0xff)
     ) % 1_000_000;
     return code.toString().padStart(6, '0');
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function stripSecret(raw) {
   return raw.toUpperCase().replace(/[^A-Z2-7]/g, '');
+}
+
+function parseLines(text) {
+  return text.split(/[\r\n]+/)
+    .map(l => stripSecret(l.trim()))
+    .filter(s => s.length >= 8);
 }
 
 function secondsLeft() { return 30 - (Math.floor(Date.now() / 1000) % 30); }
@@ -468,13 +543,41 @@ function timeWindow()   { return Math.floor(Date.now() / 1000 / 30); }
 // ─── State ──────────────────────────────────────────────────────────────────
 
 const MAX_HISTORY = 5;
-let history = JSON.parse(localStorage.getItem('2fa_history') || '[]');
-let currentSecret = '';
-let currentCode   = '';
-let lastWindow    = -1;
-let drawerOpen    = false;
+let history      = JSON.parse(localStorage.getItem('2fa_history') || '[]');
+let currentSecret  = '';   // single mode
+let currentCode    = '';
+let currentSecrets = [];   // multi mode: [{secret, code}]
+let isMultiMode    = false;
+let lastWindow     = -1;
+let drawerOpen     = false;
 
-// ─── Render ─────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function saveHistory() {
+  localStorage.setItem('2fa_history', JSON.stringify(history));
+}
+
+function pushHistory(secret, code) {
+  history = history.filter(h => h.secret !== secret);
+  history.unshift({ secret, code });
+  if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+  saveHistory();
+}
+
+async function clipboard(text) {
+  try { await navigator.clipboard.writeText(text); return; } catch {}
+  const ta = Object.assign(document.createElement('textarea'),
+    { value: text, style: 'position:fixed;opacity:0' });
+  document.body.appendChild(ta); ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
+function progressColor(s) {
+  return s <= 7 ? 'var(--red)' : s <= 13 ? 'var(--yellow)' : 'var(--accent)';
+}
+
+// ─── Render: single ─────────────────────────────────────────────────────────
 
 function renderCodeArea(code) {
   const d = code.split('');
@@ -504,8 +607,7 @@ function renderCodeArea(code) {
         <span class="progress-time" id="progress-time"></span>
       </div>
     </div>`;
-
-  document.getElementById('code-click').addEventListener('click', copyCode);
+  document.getElementById('code-click').addEventListener('click', copySingle);
   updateProgress();
 }
 
@@ -522,129 +624,195 @@ function updateProgress() {
   const time = document.getElementById('progress-time');
   if (!fill) return;
   const s = secondsLeft();
-  const pct = (s / 30) * 100;
-  fill.style.width = pct + '%';
-  fill.style.background =
-    s <= 7  ? 'var(--red)'    :
-    s <= 13 ? 'var(--yellow)' : 'var(--accent)';
+  fill.style.width = (s / 30 * 100) + '%';
+  fill.style.background = progressColor(s);
   if (time) time.textContent = s + 's';
 }
+
+async function copySingle() {
+  if (!currentCode) return;
+  await clipboard(currentCode);
+  const el   = document.getElementById('code-click');
+  const hint = document.getElementById('click-hint');
+  if (!el) return;
+  if (hint) hint.textContent = 'copied!';
+  el.classList.add('flash');
+  setTimeout(() => { el.classList.remove('flash'); if (hint) hint.textContent = 'click to copy'; }, 1200);
+}
+
+// ─── Render: multi ──────────────────────────────────────────────────────────
+
+function renderMultiArea(items) {
+  const s = secondsLeft();
+  document.getElementById('content').innerHTML = `
+    <div class="multi-area">
+      <div class="multi-label">${items.length} one-time passwords</div>
+      <div class="multi-list" id="multi-list">
+        ${items.map((item, i) => `
+          <div class="multi-item" data-code="${item.code}" data-i="${i}">
+            <span class="multi-secret">${item.secret}</span>
+            <span class="multi-code" id="mcode-${i}">
+              ${item.code.slice(0,3)}&nbsp;${item.code.slice(3)}
+            </span>
+            <span class="multi-hint" id="mhint-${i}">click to copy</span>
+          </div>`).join('')}
+      </div>
+      <div class="progress-row">
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"
+            style="width:${s/30*100}%;background:${progressColor(s)}"></div>
+        </div>
+        <span class="progress-time" id="progress-time">${s}s</span>
+      </div>
+    </div>`;
+
+  document.querySelectorAll('.multi-item').forEach(el => {
+    el.addEventListener('click', async () => {
+      const code = el.dataset.code;
+      const i    = parseInt(el.dataset.i);
+      await clipboard(code);
+      const hintEl = document.getElementById(`mhint-${i}`);
+      if (hintEl) hintEl.textContent = 'copied!';
+      el.classList.add('flash');
+      setTimeout(() => {
+        el.classList.remove('flash');
+        if (hintEl) hintEl.textContent = 'click to copy';
+      }, 1200);
+    });
+  });
+}
+
+function updateMultiCodes() {
+  currentSecrets.forEach((item, i) => {
+    const codeEl = document.getElementById(`mcode-${i}`);
+    if (codeEl) {
+      codeEl.textContent = item.code.slice(0,3) + '\u00a0' + item.code.slice(3);
+      const el = codeEl.closest('.multi-item');
+      if (el) el.dataset.code = item.code;
+    }
+  });
+}
+
+// ─── Render: history ────────────────────────────────────────────────────────
 
 function renderHistory() {
   const list  = document.getElementById('history-list');
   const count = document.getElementById('toggle-count');
   if (count) count.textContent = history.length;
-
   if (!history.length) {
     list.innerHTML = '<div class="history-empty">No recent keys</div>';
     return;
   }
-
   list.innerHTML = history.map((h, i) => `
     <div class="h-item ${i === 0 ? 'current' : ''}" data-idx="${i}">
-      <div class="h-dot ${i === 0 ? 'live' : ''}" id="hdot-${i}"></div>
+      <div class="h-dot ${i === 0 ? 'live' : ''}"></div>
       <span class="h-secret">${h.secret}</span>
       <span class="h-code ${i === 0 ? 'live' : ''}" id="hcode-${i}">
-        ${(h.code || '------').slice(0,3)} ${(h.code || '------').slice(3)}
+        ${(h.code||'------').slice(0,3)} ${(h.code||'------').slice(3)}
       </span>
-      <span class="h-s" id="hs-${i}"></span>
+      <span class="h-s" id="hs-${i}">${secondsLeft()}s</span>
       <button class="h-del" data-idx="${i}">✕</button>
     </div>`).join('');
 
-  updateHistoryCountdowns();
-
-  list.querySelectorAll('.h-del').forEach(btn => {
+  list.querySelectorAll('.h-del').forEach(btn =>
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const idx = parseInt(btn.dataset.idx);
-      history.splice(idx, 1);
-      saveHistory();
-      renderHistory();
-    });
-  });
+      history.splice(parseInt(btn.dataset.idx), 1);
+      saveHistory(); renderHistory();
+    }));
 
-  list.querySelectorAll('.h-item').forEach(item => {
+  list.querySelectorAll('.h-item').forEach(item =>
     item.addEventListener('click', e => {
       if (e.target.classList.contains('h-del')) return;
       const h = history[parseInt(item.dataset.idx)];
-      if (h) loadSecret(h.secret);
-    });
-  });
+      if (h) loadSingle(h.secret);
+    }));
 }
 
 function updateHistoryCountdowns() {
+  const s = secondsLeft();
   history.forEach((_, i) => {
     const el = document.getElementById(`hs-${i}`);
-    if (el) el.textContent = secondsLeft() + 's';
+    if (el) el.textContent = s + 's';
   });
 }
 
-// ─── Copy ───────────────────────────────────────────────────────────────────
+// ─── Load ────────────────────────────────────────────────────────────────────
 
-async function copyCode() {
-  if (!currentCode) return;
-  try {
-    await navigator.clipboard.writeText(currentCode);
-  } catch {
-    const ta = document.createElement('textarea');
-    ta.value = currentCode;
-    ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-  }
-  const el = document.getElementById('code-click');
-  const hint = document.getElementById('click-hint');
-  if (!el) return;
-  if (hint) hint.textContent = 'copied!';
-  el.classList.add('flash');
-  setTimeout(() => {
-    el.classList.remove('flash');
-    if (hint) hint.textContent = 'click to copy';
-  }, 1200);
-}
-
-// ─── History ────────────────────────────────────────────────────────────────
-
-function saveHistory() {
-  localStorage.setItem('2fa_history', JSON.stringify(history));
-}
-
-function pushHistory(secret, code) {
-  history = history.filter(h => h.secret !== secret);
-  history.unshift({ secret, code });
-  if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
-  saveHistory();
-}
-
-// ─── Load secret ────────────────────────────────────────────────────────────
-
-async function loadSecret(raw) {
+async function loadSingle(raw) {
+  isMultiMode    = false;
+  currentSecrets = [];
   const clean = stripSecret(raw);
-  document.getElementById('secret-input').value = clean;
+  const inp   = document.getElementById('secret-input');
+  inp.style.display = '';
+  inp.value = clean;
+  document.getElementById('multi-badge-wrap').style.display = 'none';
+  document.getElementById('paste-hint').style.display = '';
   currentSecret = clean;
 
-  if (!clean) {
-    currentCode = '';
-    renderEmpty();
+  if (!clean || clean.length < 8) {
+    currentCode = ''; renderEmpty();
     document.getElementById('footer-row').style.display = 'none';
     return;
   }
-
   const code = await generateTOTP(clean);
   if (!code) {
-    currentCode = '';
-    renderEmpty();
+    currentCode = ''; renderEmpty();
     document.getElementById('footer-row').style.display = 'none';
     return;
   }
-
   currentCode = code;
   lastWindow  = timeWindow();
   renderCodeArea(code);
   document.getElementById('footer-row').style.display = 'flex';
   pushHistory(clean, code);
   renderHistory();
+}
+
+async function loadMulti(secrets) {
+  isMultiMode   = true;
+  currentSecret = '';
+  currentCode   = '';
+
+  const items = await Promise.all(
+    secrets.map(async s => ({ secret: s, code: (await generateTOTP(s)) || '------' }))
+  );
+  currentSecrets = items;
+  lastWindow = timeWindow();
+
+  // search row: hide input, show badge
+  const inp = document.getElementById('secret-input');
+  inp.style.display = 'none';
+  document.getElementById('paste-hint').style.display = 'none';
+  const badgeWrap = document.getElementById('multi-badge-wrap');
+  badgeWrap.style.display = '';
+  badgeWrap.innerHTML = `
+    <div class="multi-badge">
+      <strong>${items.length}</strong> keys loaded
+      <button class="badge-clear" id="badge-clear-btn">✕</button>
+    </div>`;
+  document.getElementById('badge-clear-btn').addEventListener('click', clearAll);
+
+  renderMultiArea(items);
+  document.getElementById('footer-row').style.display = 'flex';
+
+  // push all to history (newest last-in stays at top)
+  [...items].reverse().forEach(item => pushHistory(item.secret, item.code));
+  renderHistory();
+}
+
+function clearAll() {
+  isMultiMode    = false;
+  currentSecrets = [];
+  currentSecret  = '';
+  currentCode    = '';
+  const inp = document.getElementById('secret-input');
+  inp.style.display = '';
+  inp.value = '';
+  document.getElementById('multi-badge-wrap').style.display = 'none';
+  document.getElementById('paste-hint').style.display = '';
+  renderEmpty();
+  document.getElementById('footer-row').style.display = 'none';
 }
 
 // ─── Input ──────────────────────────────────────────────────────────────────
@@ -654,16 +822,21 @@ const secretInput = document.getElementById('secret-input');
 secretInput.addEventListener('input', () => {
   const val = stripSecret(secretInput.value);
   secretInput.value = val;
-  if (val.length >= 8) loadSecret(val);
-  else if (!val) { currentSecret = ''; currentCode = ''; renderEmpty(); document.getElementById('footer-row').style.display = 'none'; }
+  if (val.length >= 8) loadSingle(val);
+  else if (!val) clearAll();
 });
 
 secretInput.addEventListener('paste', e => {
   e.preventDefault();
-  const pasted = (e.clipboardData || window.clipboardData).getData('text');
-  const clean  = stripSecret(pasted);
-  secretInput.value = clean;
-  if (clean.length >= 8) loadSecret(clean);
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  const lines = parseLines(text);
+  if (lines.length > 1) {
+    loadMulti(lines);
+  } else {
+    const clean = stripSecret(text);
+    secretInput.value = clean;
+    if (clean.length >= 8) loadSingle(clean);
+  }
 });
 
 // ─── Tick ───────────────────────────────────────────────────────────────────
@@ -671,17 +844,28 @@ secretInput.addEventListener('paste', e => {
 async function tick() {
   updateProgress();
   updateHistoryCountdowns();
+  const win = timeWindow();
+  if (win === lastWindow) return;
+  lastWindow = win;
 
-  if (currentSecret && timeWindow() !== lastWindow) {
-    lastWindow = timeWindow();
+  if (isMultiMode && currentSecrets.length) {
+    currentSecrets = await Promise.all(
+      currentSecrets.map(async item => ({
+        ...item,
+        code: (await generateTOTP(item.secret)) || item.code
+      }))
+    );
+    updateMultiCodes();
+    currentSecrets.forEach(item => pushHistory(item.secret, item.code));
+    saveHistory();
+    renderHistory();
+  } else if (currentSecret) {
     const code = await generateTOTP(currentSecret);
     if (code) {
       currentCode = code;
       renderCodeArea(code);
-      // update history codes
       history = await Promise.all(history.map(async h => ({
-        ...h,
-        code: await generateTOTP(h.secret) || h.code
+        ...h, code: (await generateTOTP(h.secret)) || h.code
       })));
       saveHistory();
       renderHistory();
@@ -691,7 +875,7 @@ async function tick() {
 
 setInterval(tick, 1000);
 
-// ─── Drawer toggle ──────────────────────────────────────────────────────────
+// ─── Drawer ──────────────────────────────────────────────────────────────────
 
 document.getElementById('hist-toggle').addEventListener('click', () => {
   drawerOpen = !drawerOpen;
@@ -701,21 +885,16 @@ document.getElementById('hist-toggle').addEventListener('click', () => {
 });
 
 document.getElementById('clear-all-btn').addEventListener('click', () => {
-  history = [];
-  saveHistory();
-  renderHistory();
+  history = []; saveHistory(); renderHistory();
   drawerOpen = false;
   document.getElementById('drawer').classList.remove('open');
   document.getElementById('hist-toggle').classList.remove('open');
   document.getElementById('toggle-count').textContent = '0';
 });
 
-// ─── Init ───────────────────────────────────────────────────────────────────
+// ─── Init ────────────────────────────────────────────────────────────────────
 
-// restore latest secret from history on load
-if (history.length) {
-  loadSecret(history[0].secret);
-}
+if (history.length) loadSingle(history[0].secret);
 </script>
 </body>
 </html>
