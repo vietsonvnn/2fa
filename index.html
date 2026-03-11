@@ -81,6 +81,17 @@
     caret-color: var(--accent);
   }
   .secret-input::placeholder { color: var(--muted2); }
+  .clear-input-btn {
+    display: none;
+    background: none; border: none;
+    color: var(--muted2); cursor: pointer;
+    font-size: 15px; line-height: 1;
+    border-radius: 5px; padding: 3px 6px;
+    transition: color 0.12s, background 0.12s;
+    flex-shrink: 0;
+  }
+  .clear-input-btn:hover { color: var(--red); background: rgba(248,113,113,0.08); }
+  .clear-input-btn.visible { display: block; }
   .paste-hint {
     font-size: 10.5px;
     color: var(--muted2);
@@ -443,6 +454,7 @@
       placeholder="Dán mã bí mật…"
       autocomplete="off" autocorrect="off" spellcheck="false">
     <div id="multi-badge-wrap" style="display:none"></div>
+    <button class="clear-input-btn" id="clear-input-btn" title="Xoá">✕</button>
     <span class="paste-hint" id="paste-hint">⌘V</span>
   </div>
 
@@ -743,6 +755,7 @@ async function loadSingle(raw) {
   inp.value = clean;
   document.getElementById('multi-badge-wrap').style.display = 'none';
   document.getElementById('paste-hint').style.display = '';
+  setClearBtnVisible(clean.length > 0);
   currentSecret = clean;
 
   if (!clean || clean.length < 8) {
@@ -779,6 +792,7 @@ async function loadMulti(secrets) {
   const inp = document.getElementById('secret-input');
   inp.style.display = 'none';
   document.getElementById('paste-hint').style.display = 'none';
+  setClearBtnVisible(false);
   const badgeWrap = document.getElementById('multi-badge-wrap');
   badgeWrap.style.display = '';
   badgeWrap.innerHTML = `
@@ -807,6 +821,7 @@ function clearAll() {
   inp.value = '';
   document.getElementById('multi-badge-wrap').style.display = 'none';
   document.getElementById('paste-hint').style.display = '';
+  setClearBtnVisible(false);
   renderEmpty();
   document.getElementById('footer-row').style.display = 'none';
 }
@@ -814,10 +829,22 @@ function clearAll() {
 // ─── Input ──────────────────────────────────────────────────────────────────
 
 const secretInput = document.getElementById('secret-input');
+const clearInputBtn = document.getElementById('clear-input-btn');
+
+function setClearBtnVisible(v) {
+  clearInputBtn.classList.toggle('visible', v);
+}
+
+clearInputBtn.addEventListener('click', () => {
+  clearAll();
+  setClearBtnVisible(false);
+  secretInput.focus();
+});
 
 secretInput.addEventListener('input', () => {
   const val = stripSecret(secretInput.value);
   secretInput.value = val;
+  setClearBtnVisible(val.length > 0);
   if (val.length >= 8) loadSingle(val);
   else if (!val) clearAll();
 });
