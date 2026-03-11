@@ -92,17 +92,6 @@
   }
   .clear-input-btn:hover { color: var(--red); background: rgba(248,113,113,0.08); }
   .clear-input-btn.visible { display: block; }
-  .paste-hint {
-    font-size: 10.5px;
-    color: var(--muted2);
-    background: var(--surface2);
-    border: 1px solid var(--border2);
-    border-radius: 5px;
-    padding: 4px 9px;
-    font-family: var(--mono);
-    flex-shrink: 0;
-    user-select: none;
-  }
 
   /* ── Empty state ── */
   .empty-state {
@@ -455,7 +444,6 @@
       autocomplete="off" autocorrect="off" spellcheck="false">
     <div id="multi-badge-wrap" style="display:none"></div>
     <button class="clear-input-btn" id="clear-input-btn" title="Xoá">✕</button>
-    <span class="paste-hint" id="paste-hint">⌘V</span>
   </div>
 
   <!-- Content -->
@@ -754,7 +742,7 @@ async function loadSingle(raw) {
   inp.style.display = '';
   inp.value = clean;
   document.getElementById('multi-badge-wrap').style.display = 'none';
-  document.getElementById('paste-hint').style.display = '';
+
   setClearBtnVisible(clean.length > 0);
   currentSecret = clean;
 
@@ -791,7 +779,7 @@ async function loadMulti(secrets) {
   // search row: hide input, show badge
   const inp = document.getElementById('secret-input');
   inp.style.display = 'none';
-  document.getElementById('paste-hint').style.display = 'none';
+
   setClearBtnVisible(false);
   const badgeWrap = document.getElementById('multi-badge-wrap');
   badgeWrap.style.display = '';
@@ -820,7 +808,7 @@ function clearAll() {
   inp.style.display = '';
   inp.value = '';
   document.getElementById('multi-badge-wrap').style.display = 'none';
-  document.getElementById('paste-hint').style.display = '';
+
   setClearBtnVisible(false);
   renderEmpty();
   document.getElementById('footer-row').style.display = 'none';
