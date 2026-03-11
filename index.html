@@ -858,9 +858,6 @@ async function tick() {
     if (gen !== tickGen) return; // stale — user cleared or changed mode
     currentSecrets = newSecrets;
     updateMultiCodes();
-    currentSecrets.forEach(item => pushHistory(item.secret, item.code));
-    saveHistory();
-    renderHistory();
   } else if (currentSecret) {
     const code = await generateTOTP(currentSecret);
     if (gen !== tickGen) return;
@@ -884,11 +881,14 @@ document.getElementById('hist-toggle').addEventListener('click', () => {
 
 document.getElementById('clear-all-btn').addEventListener('click', () => {
   tickGen++;
-  history = []; saveHistory(); renderHistory();
-  drawerOpen = false;
-  document.getElementById('drawer').classList.remove('open');
-  document.getElementById('hist-toggle').classList.remove('open');
-  document.getElementById('toggle-count').textContent = '0';
+  history = []; saveHistory();
+  renderHistory();
+  // giữ drawer mở để user thấy kết quả xoá
+  if (!drawerOpen) {
+    drawerOpen = true;
+    document.getElementById('drawer').classList.add('open');
+    document.getElementById('hist-toggle').classList.add('open');
+  }
 });
 
 // ─── Init ────────────────────────────────────────────────────────────────────
