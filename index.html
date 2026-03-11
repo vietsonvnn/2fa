@@ -156,12 +156,7 @@
     letter-spacing: -0.02em;
     transition: color 0.2s;
   }
-  .g-sep {
-    display: flex; flex-direction: column;
-    justify-content: center; gap: 7px;
-    padding-bottom: 4px;
-  }
-  .g-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted2); }
+  .g-sep { display: none; }
 
   .code-click.flash .g-digit { color: var(--green); }
 
@@ -445,7 +440,7 @@
       <line x1="16.5" y1="16.5" x2="22" y2="22"/>
     </svg>
     <input class="secret-input" id="secret-input"
-      placeholder="Paste secret key…"
+      placeholder="Dán mã bí mật…"
       autocomplete="off" autocorrect="off" spellcheck="false">
     <div id="multi-badge-wrap" style="display:none"></div>
     <span class="paste-hint" id="paste-hint">⌘V</span>
@@ -455,7 +450,7 @@
   <div id="content">
     <div class="empty-state">
       <div class="empty-icon">⬡</div>
-      <div class="empty-text">Paste your secret key above<br>to generate a 2FA code</div>
+      <div class="empty-text">Dán mã bí mật phía trên<br>để tạo mã 2FA</div>
     </div>
   </div>
 
@@ -466,10 +461,10 @@
         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <polyline points="6 9 12 15 18 9"/>
       </svg>
-      Recent
+      Gần đây
       <span class="toggle-count" id="toggle-count">0</span>
     </button>
-    <button class="clear-all" id="clear-all-btn">Clear all</button>
+    <button class="clear-all" id="clear-all-btn">Xoá tất cả</button>
   </div>
 
   <!-- History drawer -->
@@ -583,7 +578,7 @@ function renderCodeArea(code) {
   const d = code.split('');
   document.getElementById('content').innerHTML = `
     <div class="code-area">
-      <div class="code-label">One-time password</div>
+      <div class="code-label">Mã xác thực</div>
       <div class="code-click" id="code-click">
         <div class="giant-code">
           <div class="g-group">
@@ -598,7 +593,7 @@ function renderCodeArea(code) {
             <span class="g-digit">${d[5]}</span>
           </div>
         </div>
-        <span class="click-hint" id="click-hint">click to copy</span>
+        <span class="click-hint" id="click-hint">nhấn để sao chép</span>
       </div>
       <div class="progress-row">
         <div class="progress-track">
@@ -615,7 +610,7 @@ function renderEmpty() {
   document.getElementById('content').innerHTML = `
     <div class="empty-state">
       <div class="empty-icon">⬡</div>
-      <div class="empty-text">Paste your secret key above<br>to generate a 2FA code</div>
+      <div class="empty-text">Dán mã bí mật phía trên<br>để tạo mã 2FA</div>
     </div>`;
 }
 
@@ -635,9 +630,9 @@ async function copySingle() {
   const el   = document.getElementById('code-click');
   const hint = document.getElementById('click-hint');
   if (!el) return;
-  if (hint) hint.textContent = 'copied!';
+  if (hint) hint.textContent = 'Đã sao chép!';
   el.classList.add('flash');
-  setTimeout(() => { el.classList.remove('flash'); if (hint) hint.textContent = 'click to copy'; }, 1200);
+  setTimeout(() => { el.classList.remove('flash'); if (hint) hint.textContent = 'nhấn để sao chép'; }, 1200);
 }
 
 // ─── Render: multi ──────────────────────────────────────────────────────────
@@ -646,7 +641,7 @@ function renderMultiArea(items) {
   const s = secondsLeft();
   document.getElementById('content').innerHTML = `
     <div class="multi-area">
-      <div class="multi-label">${items.length} one-time passwords</div>
+      <div class="multi-label">${items.length} mã xác thực</div>
       <div class="multi-list" id="multi-list">
         ${items.map((item, i) => `
           <div class="multi-item" data-code="${item.code}" data-i="${i}">
@@ -654,7 +649,7 @@ function renderMultiArea(items) {
             <span class="multi-code" id="mcode-${i}">
               ${item.code.slice(0,3)}&nbsp;${item.code.slice(3)}
             </span>
-            <span class="multi-hint" id="mhint-${i}">click to copy</span>
+            <span class="multi-hint" id="mhint-${i}">nhấn để sao chép</span>
           </div>`).join('')}
       </div>
       <div class="progress-row">
@@ -672,11 +667,11 @@ function renderMultiArea(items) {
       const i    = parseInt(el.dataset.i);
       await clipboard(code);
       const hintEl = document.getElementById(`mhint-${i}`);
-      if (hintEl) hintEl.textContent = 'copied!';
+      if (hintEl) hintEl.textContent = 'Đã sao chép!';
       el.classList.add('flash');
       setTimeout(() => {
         el.classList.remove('flash');
-        if (hintEl) hintEl.textContent = 'click to copy';
+        if (hintEl) hintEl.textContent = 'nhấn để sao chép';
       }, 1200);
     });
   });
@@ -700,7 +695,7 @@ function renderHistory() {
   const count = document.getElementById('toggle-count');
   if (count) count.textContent = history.length;
   if (!history.length) {
-    list.innerHTML = '<div class="history-empty">No recent keys</div>';
+    list.innerHTML = '<div class="history-empty">Chưa có lịch sử</div>';
     return;
   }
   list.innerHTML = history.map((h, i) => `
@@ -788,7 +783,7 @@ async function loadMulti(secrets) {
   badgeWrap.style.display = '';
   badgeWrap.innerHTML = `
     <div class="multi-badge">
-      <strong>${items.length}</strong> keys loaded
+      <strong>${items.length}</strong> mã đã nạp
       <button class="badge-clear" id="badge-clear-btn">✕</button>
     </div>`;
   document.getElementById('badge-clear-btn').addEventListener('click', clearAll);
