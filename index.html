@@ -8,18 +8,18 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #09090b;
-    --surface:   #111113;
-    --surface2:  #18181c;
-    --border:    #222228;
-    --border2:   #2e2e38;
-    --text:      #ededf5;
-    --muted:     #4e4e64;
-    --muted2:    #35353f;
-    --accent:    #8b7ff8;
-    --accent-lo: rgba(139,127,248,0.10);
+    --bg:        #111117;
+    --surface:   #1c1c24;
+    --surface2:  #25252f;
+    --border:    #32323e;
+    --border2:   #42424f;
+    --text:      #f0f0f8;
+    --muted:     #7070a0;
+    --muted2:    #4a4a62;
+    --accent:    #9d93ff;
+    --accent-lo: rgba(157,147,255,0.12);
     --green:     #4ade9a;
-    --green-lo:  rgba(74,222,154,0.08);
+    --green-lo:  rgba(74,222,154,0.10);
     --yellow:    #fbbf24;
     --red:       #f87171;
     --mono:      'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
@@ -802,6 +802,7 @@ async function loadMulti(secrets) {
 }
 
 function clearAll() {
+  tickGen++;
   isMultiMode    = false;
   currentSecrets = [];
   currentSecret  = '';
@@ -841,6 +842,8 @@ secretInput.addEventListener('paste', e => {
 
 // ─── Tick ───────────────────────────────────────────────────────────────────
 
+let tickGen = 0;
+
 async function tick() {
   updateProgress();
   updateHistoryCountdowns();
@@ -848,27 +851,27 @@ async function tick() {
   if (win === lastWindow) return;
   lastWindow = win;
 
+  const gen = ++tickGen;
+
   if (isMultiMode && currentSecrets.length) {
-    currentSecrets = await Promise.all(
+    const newSecrets = await Promise.all(
       currentSecrets.map(async item => ({
         ...item,
         code: (await generateTOTP(item.secret)) || item.code
       }))
     );
+    if (gen !== tickGen) return; // stale — user cleared or changed mode
+    currentSecrets = newSecrets;
     updateMultiCodes();
     currentSecrets.forEach(item => pushHistory(item.secret, item.code));
     saveHistory();
     renderHistory();
   } else if (currentSecret) {
     const code = await generateTOTP(currentSecret);
+    if (gen !== tickGen) return;
     if (code) {
       currentCode = code;
       renderCodeArea(code);
-      history = await Promise.all(history.map(async h => ({
-        ...h, code: (await generateTOTP(h.secret)) || h.code
-      })));
-      saveHistory();
-      renderHistory();
     }
   }
 }
@@ -885,6 +888,7 @@ document.getElementById('hist-toggle').addEventListener('click', () => {
 });
 
 document.getElementById('clear-all-btn').addEventListener('click', () => {
+  tickGen++;
   history = []; saveHistory(); renderHistory();
   drawerOpen = false;
   document.getElementById('drawer').classList.remove('open');
